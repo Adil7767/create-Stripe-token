@@ -1,322 +1,305 @@
-import { all, call, put, takeLatest } from "redux-saga/effects"
-import AsyncStorage from "@react-native-async-storage/async-storage"
-
-// config
-import { API_URL } from "../config/app"
-import { setAccessToken } from "./loginRedux"
-import { navigate } from "../navigation/NavigationService"
+import React, { useEffect, useState } from "react"
+import { connect } from "react-redux"
+// components
+import {
+  View,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Text,
+  FlatList
+} from "react-native"
+import { CreditCardInput } from "react-native-input-credit-card"
+import {
+  getCustomerIdRequest,
+  postSubscriptionRequest,
+  deleteCardRequest,
+  getCardRequest
+} from "../../ScreenRedux/subscriptionRedux"
+import CreditCardDisplay from "react-native-credit-card-display"
+import { Images } from "../../theme"
+import {  createToken } from '@stripe/stripe-react-native';
 import { showMessage } from "react-native-flash-message"
-
-// utils
-import XHR from "src/utils/XHR"
-
-//Types
-const GET_PLAN_REQUEST = "SUBSCRIPTION_SCREEN/GET_PLAN_REQUEST"
-const GET_PLAN_SUCCESS = "SUBSCRIPTION_SCREEN/GET_PLAN_SUCCESS"
-const GET_PLAN_FAILURE = "SUBSCRIPTION_SCREEN/GET_PLAN_FAILURE"
-const NEW_SUBSCRIPTION = "SUBSCRIPTION_SCREEN/NEW_SUBSCRIPTION"
-const RESET = "SUBSCRIPTION_SCREEN/RESET"
-
-const GET_CUSTOMERID_REQUEST = "SUBSCRIPTION_SCREEN/GET_CUSTOMERID_REQUEST"
-const GET_CUSTOMERID_SUCCESS = "SUBSCRIPTION_SCREEN/GET_CUSTOMERID_SUCCESS"
-const GET_CUSTOMERID_FAILURE = "SUBSCRIPTION_SCREEN/GET_CUSTOMERID_FAILURE"
-
-const POST_SUBSCRIPTION_REQUEST =
-  "SUBSCRIPTION_SCREEN/POST_SUBSCRIPTION_REQUEST"
-const POST_SUBSCRIPTION_SUCCESS =
-  "SUBSCRIPTION_SCREEN/POST_SUBSCRIPTION_SUCCESS"
-const POST_SUBSCRIPTION_FAILURE =
-  "SUBSCRIPTION_SCREEN/POST_SUBSCRIPTION_FAILURE"
-const PAYMENT_SUBSCRIPTION_REQUEST =
-  "SUBSCRIPTION_SCREEN/PAYMENT_SUBSCRIPTION_REQUEST"
-
-const initialState = {
-  requesting: false,
-  getPlanSuccess: false,
-  getPlanFailure: false,
-
-  cIRequesting: false,
-  getCISuccess: false,
-  getCIFailure: false,
-
-  SRequesting: false,
-  getSubscription: false,
-  getSubscriptionError: false,
-  subscriptionData: false,
-  subRequesting: false
-}
-
-//Actions
-export const getPlanRequest = data => ({
-  type: GET_PLAN_REQUEST,
-  data
-})
-
-export const getPlanSuccess = data => ({
-  type: GET_PLAN_SUCCESS,
-  data
-})
-
-export const getPlanFailure = error => ({
-  type: GET_PLAN_FAILURE,
-  error
-})
-
-export const getCustomerIdRequest = data => ({
-  type: GET_CUSTOMERID_REQUEST,
-  data
-})
-
-export const getCustomerIdSuccess = data => ({
-  type: GET_CUSTOMERID_SUCCESS,
-  data
-})
-
-export const getCustomerIdFailure = error => ({
-  type: GET_CUSTOMERID_FAILURE,
-  error
-})
-
-export const postSubscriptionRequest = data => ({
-  type: POST_SUBSCRIPTION_REQUEST,
-  data
-})
-
-export const postSubscriptionSuccess = data => ({
-  type: POST_SUBSCRIPTION_SUCCESS,
-  data
-})
-
-export const postSubscriptionFailure = error => ({
-  type: POST_SUBSCRIPTION_FAILURE,
-  error
-})
-
-export const newSubScription = data => ({
-  type: NEW_SUBSCRIPTION,
-  data
-})
-
-export const paymentSubscriptionRequest = data => ({
-  type: PAYMENT_SUBSCRIPTION_REQUEST,
-  data
-})
-
-export const reset = () => ({
-  type: RESET
-})
-
-//Reducers
-export const subscriptionReducer = (state = initialState, action) => {
-  switch (action.type) {
-    case GET_PLAN_REQUEST:
-      return {
-        ...state,
-        subRequesting: true
-      }
-
-    case GET_PLAN_SUCCESS:
-      return {
-        ...state,
-        getPlanSuccess: action.data,
-        subRequesting: false
-      }
-    case GET_PLAN_FAILURE:
-      return {
-        ...state,
-        getPlanFailure: action.error,
-        subRequesting: false
-      }
-
-    case GET_CUSTOMERID_REQUEST:
-      return {
-        ...state,
-        requesting: true
-      }
-
-    case GET_CUSTOMERID_SUCCESS:
-      return {
-        ...state,
-        getCISuccess: action.data,
-        requesting: false
-      }
-    case GET_CUSTOMERID_FAILURE:
-      return {
-        ...state,
-        getCIFailure: action.error,
-        requesting: false
-      }
-
-    case POST_SUBSCRIPTION_REQUEST:
-      return {
-        ...state,
-        requesting: true
-      }
-
-    case POST_SUBSCRIPTION_SUCCESS:
-      return {
-        ...state,
-        getSubscription: action.data,
-        requesting: false
-      }
-    case POST_SUBSCRIPTION_FAILURE:
-      return {
-        ...state,
-        getSubscriptionError: action.error,
-        requesting: false
-      }
-
-    case NEW_SUBSCRIPTION:
-      return {
-        ...state,
-        subscriptionData: action.data
-      }
-
-    case RESET:
-      return {
-        ...state,
-        requesting: false
-      }
-
-    default:
-      return state
-  }
-}
-
-//Saga
-async function getPlanAPI() {
-  const URL = `${API_URL}/subscription/plans/`
-  const token = await AsyncStorage.getItem("authToken")
-  const options = {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Token  ${token}`
-    }
-  }
-  return XHR(URL, options)
-}
-
-function* getFeeds() {
-  try {
-    const response = yield call(getPlanAPI)
-    const activeFilteredData = response.data.filter(
-      data => data.product_details.active
-    )
-    yield put(getPlanSuccess(activeFilteredData))
-  } catch (e) {
-    const { response } = e
-    yield put(getPlanFailure(e))
-  } finally {
-    yield put(getPlanFailure())
-  }
-}
-
-//Saga
-async function getCustomerIdAPI() {
-  const URL = `${API_URL}/payment/get_customer_id/`
-  const token = await AsyncStorage.getItem("authToken")
-  const options = {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Token  ${token}`
-    }
-  }
-  return XHR(URL, options)
-}
-
-function* getCustomerId() {
-  try {
-    const response = yield call(getCustomerIdAPI)
-
-    yield put(getCustomerIdSuccess(response.data.data))
-  } catch (e) {
-    const { response } = e
-
-    yield put(getCustomerIdFailure(e))
-  }
-}
-
-//Saga
-
-async function addSubscriptionCardAPI(data) {
-  const URL = `${API_URL}/subscription/create_card/`
-  const token = await AsyncStorage.getItem("authToken")
-  const options = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Token  ${token}`
+let cardata = []
+const CreditCard = props => {
+  const {
+    navigation,
+    route: {
+      params: { plan_id, product, is_premium }
     },
-    data
-  }
-  return XHR(URL, options)
-}
-function* addSubscriptionCard({ data }) {
-  try {
-    const response = yield call(addSubscriptionCardAPI, data)
-    yield put(paymentSubscriptionRequest(data))
-  } catch (e) {
-    showMessage({
-      message: "something went wrong",
-      type: "error"
-    })
-    const { response } = e
-    // yield put(postSubscriptionFailure(e))
-  } finally {
-    yield put(reset())
-  }
-}
-//api call function
-async function paymentSubscriptionAPI(payload) {
-  const data = { price_id: payload.plan_id, premium_user: payload.premium_user }
-  const URL = `${API_URL}/subscription/create_subscription/`
-  const token = await AsyncStorage.getItem("authToken")
-  const options = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Token  ${token}`
-    },
-    data
-  }
-  return XHR(URL, options)
-}
-//assign CSV programs
-async function submitQuestionAPI() {
-  const token = await AsyncStorage.getItem("authToken")
-  const URL = `${API_URL}/form/set_program/`
-  const options = {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Token ${token}`
-    },
-    method: "POST"
-  }
-  return XHR(URL, options)
-}
-//generator function
-function* paymentSubscription({ data }) {
-  try {
-    const response = yield call(paymentSubscriptionAPI, data)
-    navigate("Feeds")
-    showMessage({
-      message: "Card added successfully",
-      type: "success"
-    })
-    yield submitQuestionAPI()
-    yield put(newSubScription(response.data))
-  } catch (e) {
-    const { response } = e
-  } finally {
-    yield put(reset())
-  }
-}
+    getCustomerIdRequest,
+    postSubscriptionRequest,
+    deleteCardRequest,
+    getCardRequest,
+    getCardData
+  } = props
+  const [data, setData] = useState([])
+  const [visible, setVisible] = useState(false)
+  const [cardData, setCrdData] = useState([])
+  const [selected, setSelected] = useState("")
 
-export default all([
-  takeLatest(GET_PLAN_REQUEST, getFeeds),
-  takeLatest(GET_CUSTOMERID_REQUEST, getCustomerId),
-  takeLatest(POST_SUBSCRIPTION_REQUEST, addSubscriptionCard),
-  takeLatest(PAYMENT_SUBSCRIPTION_REQUEST, paymentSubscription)
-])
+  useEffect(() => {
+    getCustomerIdRequest()
+    getCardRequest()
+  }, [])
+
+  const creditCardData = form => {
+    setData(form)
+  }
+  function capitalizeFirstLetter(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+  const getDataFromCard =async () => {
+    try {
+    const month = data.values.expiry.slice(0, 2)
+    const year = data.values.expiry.slice(3, 5)
+
+    const  CreateCardTokenParams = {
+      brand:capitalizeFirstLetter(data.values.type),
+      complete:data?.valid,
+      expiryMonth:month,
+      expiryYear:year,
+      last4:data.values.number.slice(-4),
+      type:"Card",
+      validCVC:capitalizeFirstLetter(data.status.cvc),
+      validExpiryDate:capitalizeFirstLetter(data.status.expiry),
+      validNumber:capitalizeFirstLetter(data.status.number)
+
+  };
+    const res= await createToken(CreateCardTokenParams)
+      const newData = {
+        plan_id: plan_id,
+        premium_user: is_premium,
+        card_token:res?.token?.id
+      }
+
+    await postSubscriptionRequest(newData)
+    // navigation.navigate('SurveyScreen');
+}catch (error) {
+  console.log(error,'rrrr');
+  showMessage(message='something wend wrong',type='error')
+  }
+  }
+  const saveData = () => {
+    createCard(data)
+    // cardata.push(data)
+    // setCrdData(cardata)
+  }
+  const deleteCard=(data)=>{
+    deleteCardRequest(data.id)
+  }
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.leftArrow}
+        onPress={() => navigation.goBack()}
+      >
+        <Image source={Images.backArrow} style={styles.backArrowStyle} />
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.addCard} onPress={() => setVisible(true)}>
+        <Text style={{ fontSize: 17, fontWeight: "bold" }}>Add Card</Text>
+      </TouchableOpacity>
+      {getCardData ? (
+        <FlatList
+          data={getCardData}
+          keyExtractor={item => item.values.number}
+          renderItem={({ item }) => (
+            <View style={{ alignSelf: "center", marginTop: 40 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-evenly",
+                  width: "100%"
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setSelected(item.values.number)}
+                >
+                  <View
+                    style={{
+                      height: 20,
+                      width: 20,
+                      borderRadius: 30,
+                      borderWidth: 2,
+                      borderColor: "grey",
+                      backgroundColor:
+                        selected == item.values.number ? "#A020F0" : "white"
+                    }}
+                  />
+                </TouchableOpacity>
+                <CreditCardDisplay
+                  number={item.values.number}
+                  cvc={item.values.cvc}
+                  expiration={item.values.expiry}
+                  name={item.values.name}
+                  flipped={false}
+                />
+              </View>
+              {selected == item.values.number ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-evenly",
+                    marginTop: 20,
+                    marginBottom: 10
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => getDataFromCard()}
+                    style={{
+                      height: 40,
+                      width: "30%",
+                      backgroundColor: "white",
+                      elevation: 6,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                  >
+                    <Text style={{ fontSize: 17, fontWeight: "bold" }}>
+                      Pay
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{
+                      height: 40,
+                      width: "30%",
+                      backgroundColor: "white",
+                      elevation: 6,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                    onPress={deleteCard}
+                  >
+                    <Text
+                      style={{ fontSize: 17, fontWeight: "bold", color: "red" }}
+                    >
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          )}
+        />
+      ) : (
+        <Text style={{ fontSize: 17, fontWeight: "bold" }}>
+          No Cards Available
+        </Text>
+      )}
+      <Modal visible={visible}>
+        <View style={{ backgroundColor: "white", flex: 1 }}>
+          <TouchableOpacity
+            style={styles.leftArrow}
+            onPress={() => setVisible(false)}
+          >
+            <Image source={Images.backArrow} style={styles.backArrowStyle} />
+          </TouchableOpacity>
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "bold",
+              alignSelf: "center",
+              marginTop: 50
+            }}
+          >
+            Please Add Your Card Details
+          </Text>
+          <View style={{ marginTop: 30 }}>
+            <CreditCardInput
+              requiresName
+              onChange={form => creditCardData(form)}
+            />
+          </View>
+          <View
+            style={{
+              marginHorizontal: 20,
+              justifyContent: "center",
+              alignItems: "center"
+            }}
+          >
+            <TouchableOpacity
+              disabled={!data.valid}
+              onPress={() => {
+                saveData()
+                setVisible(false)
+              }}
+              style={{
+                height: 40,
+                width: "100%",
+                backgroundColor: "white",
+                elevation: 5,
+                borderRadius: 10,
+                marginTop: 50,
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <Text style={{ fontSize: 17, fontWeight: "bold" }}>Confirm</Text>
+            </TouchableOpacity>
+            {/* <Button
+          color="primary"
+          text={'Add'}
+          center
+          style={{
+            height: 40,
+            width: '100%',
+            borderWidth: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+          onPress={()=>saveData()}
+          //onPress={() => getDataFromCard()}
+          //disabled={!data.valid}
+        /> */}
+          </View>
+        </View>
+      </Modal>
+    </>
+  )
+}
+const styles = StyleSheet.create({
+  leftArrow: {
+    marginTop: 20,
+    zIndex: 22,
+    left: 10,
+    width: 50,
+    height: 50
+  },
+  iconWrapper: {
+    fontSize: 50,
+    lineHeight: 50
+  },
+  addCard: {
+    height: 50,
+    width: "60%",
+    backgroundColor: "white",
+    borderRadius: 15,
+    borderColor: "lightgrey",
+    borderWidth: 1,
+    alignSelf: "center",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5
+  }
+})
+
+const mapStateToProps = state => ({
+  customerId: state.subscriptionReducer.getCISuccess,
+  getPlans: state.subscriptionReducer.getPlanSuccess,
+  getCardData: state.subscriptionReducer.getPlanSuccess,
+  // subscription: state.subscription.subscription,
+})
+
+const mapDispatchToProps = dispatch => ({
+  getCustomerIdRequest: () => dispatch(getCustomerIdRequest()),
+  postSubscriptionRequest: data => dispatch(postSubscriptionRequest(data)),
+  deleteCardRequest:data => dispatch(deleteCardRequest(data)),
+  getCardRequest:data => dispatch(getCardRequest(data)),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(CreditCard)
+  
