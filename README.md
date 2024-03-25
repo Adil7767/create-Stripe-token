@@ -6,7 +6,9 @@ React native create srtipe token by custom data
 
 
 android/build.gradle
+
         compileSdkVersion = 34
+        
         targetSdkVersion = 34
 
 
@@ -15,5 +17,10 @@ android/build.gradle
 
         
 #Changes for IOS
+
+
+
+
 ios/podfile
+
         platform :ios, '13.0'
